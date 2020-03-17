@@ -1,9 +1,21 @@
 import java.net.InetAddress;
 
+/**
+ * Classe modelisant un joueur pour le serveur de morpion.
+ * @author HELOISE Anais - LAMBARD Maxence
+ *
+ */
 public class Joueur {
+    // l'adresse Inet du joueur
     private InetAddress adresse;
+    
+    // l'host du joueur
     private String hostName;
+    
+    // le port du joueur
     private int port;
+    
+    // le nom (ou pseudo) du joueur
     private String nom;
     
     
@@ -30,6 +42,11 @@ public class Joueur {
         return hostName;
     }
     
+    /**
+     * Retourne une combinaison de l'host et du port du joueur de la facon suivante : host:port
+     * @return
+     *    host:port du joueur
+     */
     public String getHostPort() {
         return hostName + ":" + port;
     }

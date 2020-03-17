@@ -4,20 +4,23 @@ import java.util.Arrays;
 import java.io.IOException;
 import java.math.*;
 
+/**
+ * Classe modelisant un serveur permettant de client qui se connectent de jouer
+ * au morpion entre eux.
+ * 
+ * @author HELOISE Anais - LAMBARD Maxence
+ *
+ */
 public class MorpionServeur {
 
+    // instance qui gere le jeu de morpion
     private Morpion morpion;
 
+    // instance qui gere la reception et l'envoie de datagrampaquet
     private DatagramSocket dg;
 
+    // instances qui sauvegardent les informations de routage des clients
     private Joueur joueur1, joueur2;
-
-    // private String[] lesJoueurs;
-    private String[] joueursNoms;
-
-    private int nbJoueurs;
-
-    private String etatJeu;
 
     private boolean enCours;
 
@@ -31,9 +34,7 @@ public class MorpionServeur {
             System.out.println("Constructeur :" + e);
         }
         morpion = new Morpion();
-        nbJoueurs = 0;
         enCours = false;
-        // lesJoueurs = new String[2];
     }
 
     /**
@@ -44,7 +45,8 @@ public class MorpionServeur {
         DatagramPacket dps = null;
 
         System.out.println("Démarrage du serveur");
-        // int i = 1;
+
+        int nbJoueurs = 0;
 
         // Démarrage de la boucle d'attente des connexions clients
         while (nbJoueurs < 2) { // while (true) {
@@ -107,9 +109,13 @@ public class MorpionServeur {
         }
     }
 
-    // cas ou le jeu a commence, un joueur vient d'envoyer les coordonnees de la
-    // case jouee
+    /**
+     * Le jeu est en cours. Traitement des tours des joueurs.
+     */
     public void jeuEnCours() {
+        String messageJC = "";
+        String messageJA = "";
+
         // Création du DatagramPacket de réception
         byte[] bufJC = new byte[1000];
         byte[] bufJA = new byte[1000];
@@ -117,14 +123,15 @@ public class MorpionServeur {
         DatagramPacket dpsJC = null;
         DatagramPacket dpsJA = null;
 
-        // les deux joueurs requis sont enregistres, on les previent
-        System.out.println(
-                "Informe le joueur 1 qu'il a la main.\nInforme le joueur 2 que c'est le joueur 1 qui commence.");
-        bufJC = ("-request-\nVous jouez contre " + joueur2.getNom() + ". Vous avez la main !\n"
+        messageJC = "-request-\nVous jouez contre " + joueur2.getNom() + ". Vous avez la main !\n"
                 + "Vous pouvez jouer !\n" + morpion.toString()
-                + "Entrez les coordonnées de la case entre 1 et 3 (numLigne numColonne)").getBytes();
-        bufJA = ("-info-\nVous jouez contre " + joueur1.getNom() + ". C'est votre adversaire qui commence !\n")
-                .getBytes();
+                + "Entrez les coordonnées de la case entre 1 et 3 (numLigne numColonne)";
+        messageJA = "-info-\nVous jouez contre " + joueur1.getNom() + ". C'est votre adversaire qui commence !";
+
+        System.out.println();
+
+        bufJC = messageJC.getBytes();
+        bufJA = messageJA.getBytes();
 
         dpsJC = new DatagramPacket(bufJC, bufJC.length, joueur1.getAdresse(), joueur1.getPort());
         dpsJA = new DatagramPacket(bufJA, bufJA.length, joueur2.getAdresse(), joueur2.getPort());
@@ -138,13 +145,17 @@ public class MorpionServeur {
             e1.printStackTrace();
         }
 
+        // vidage des messages
+        messageJC = "";
+        messageJA = "";
+
         DatagramPacket dpr = null;
 
         enCours = true;
 
         while (enCours) {
             System.out.println("\nTour " + morpion.getNbTours() + "\n");
-            
+
             // Attente de la réception d'un DatagramPacket
             Joueur joueurCourant = null;
             Joueur joueurEnAttente = null;
@@ -155,53 +166,93 @@ public class MorpionServeur {
             if (morpion.getNbTours() % 2 == 1) {
                 joueurCourant = joueur1;
                 joueurEnAttente = joueur2;
-                
+
             } else {
                 joueurEnAttente = joueur1;
                 joueurCourant = joueur2;
-                
+
             }
-            
-            System.out.println("les infos des joueurs :\njC : " + joueurCourant + "\njA : " + joueurEnAttente);
+
+            System.out.println("-log-\nLes infos des joueurs :\njoueurCourant : " + joueurCourant
+                    + "\njoueurEnAttente : " + joueurEnAttente);
 
             try {
-                System.out.println("Réception des cordonnées de jeu");
+                System.out.println("-log-\nRéception des cordonnées de jeu...");
                 dg.receive(dpr);
 
-                String[] coordonneesDeJeu = (new String(dpr.getData(), 0, dpr.getLength())).split(" ");
-                int numLigne = Integer.parseInt(coordonneesDeJeu[0]);
-                int numCol = Integer.parseInt(coordonneesDeJeu[1]);
+                String[] coordonneesDeJeu = (new String(dpr.getData(), 0, dpr.getLength())).trim().split(" ");
 
-                if (morpion.mouvementAutorise(numLigne, numCol)) {
-                    morpion.getJoueurCourant().jouer(numLigne, numCol);
+                System.out.println("-log-Coordonnées reçues : " + coordonneesDeJeu);
 
-                    System.out.println(
-                            "Demande au joueur en attente de jouer.\nInforme l'autre joueur qu'il est en attente.");
-                    bufJA = ("-request-Tour \n" + morpion.getNbTours() +"\n" + morpion + "A vous de jouer " + joueurEnAttente.getNom()
-                            + " ! (numLigne numColonne)").getBytes();
-                    bufJC = ("-info-\n" + morpion + "En attente de " + joueurEnAttente.getNom() + "...").getBytes();
+                if (verifFormatCoordonnees(coordonneesDeJeu)) {
+
+                    int numLigne = Integer.parseInt(coordonneesDeJeu[0]);
+                    int numCol = Integer.parseInt(coordonneesDeJeu[1]);
+
+                    if (morpion.mouvementAutorise(numLigne - 1, numCol - 1)) {
+                        morpion.getJoueurCourant().jouer(numLigne - 1, numCol - 1);
+
+                        // on verifie le nombre de tour pour savoir si c'est la fin du jeu
+                        if (morpion.victoire()) {
+                            enCours = false;
+
+                            System.out.println("La partie est finie !");
+
+                            messageJA = "-exit-\n" + morpion + "Vous avez perdu...";
+                            messageJC = "-exit-\n" + morpion + "Vous avez gagné, félicitations !";
+
+                        } else if (morpion.fini()) {
+                            enCours = false;
+
+                            System.out.println("La partie est finie !");
+
+                            messageJC = "-exit-\nLa partie est finie ! Personne n'a gagné...";
+                            messageJA = messageJC;
+
+                        } else {
+
+                            messageJA = "-request-Tour " + morpion.getNbTours() + "\n" + morpion + "A vous de jouer "
+                                    + joueurEnAttente.getNom() + " ! (numLigne numColonne)";
+                            messageJC = "-info-\n" + morpion + "En attente de " + joueurEnAttente.getNom() + "...";
+
+                        }
+
+                    } else {
+                        messageJC = "-request-Tour " + morpion.getNbTours() + "\n" + morpion + "La case [" + numLigne
+                                + ", " + numCol + "] est déjà jouée !\nChoisissez une case libre !";
+                    }
 
                 } else {
-                    System.out.println("Demande au joueur courant de rejouer.");
-                    bufJC = ("-request-Tour \n" + morpion.getNbTours() + "\nLa case [" + numLigne + ", " + numCol
-                            + "] est déjà jouée !\nChoisissez une case libre !").getBytes();
+                    messageJC = "-request-Tour " + morpion.getNbTours() + "\n" + morpion
+                            + "Les coordonnées envoyées n'ont pas un format correctes...\n"
+                            + "Veuillez utiliser le format suivant pour des coordonnées comprises entre 1 et 3 : numLigne numColonne";
                 }
 
-                if (bufJC.length > 0)
-                    dpsJC = new DatagramPacket(bufJC, bufJC.length, joueurCourant.getAdresse(), joueurCourant.getPort());
+                bufJC = messageJC.getBytes();
+                bufJA = messageJA.getBytes();
 
-                if (bufJA.length > 0)
+                if (messageJC.length() > 0) {
+                    System.out.println("-log-\nEnvoie à " + joueurCourant.getNom() + " de :\n" + messageJC + "\n("
+                            + bufJC.length + " bytes)");
+                    dpsJC = new DatagramPacket(bufJC, bufJC.length, joueurCourant.getAdresse(),
+                            joueurCourant.getPort());
+                }
+
+                if (messageJA.length() > 0) {
+                    System.out.println("-log-\nEnvoie à " + joueurEnAttente.getNom() + " de :\n" + messageJA + "\n("
+                            + bufJA.length + " bytes)");
                     dpsJA = new DatagramPacket(bufJA, bufJA.length, joueurEnAttente.getAdresse(),
-                        joueurEnAttente.getPort());
+                            joueurEnAttente.getPort());
+                }
 
-                if (bufJC.length > 0)
+                if (messageJC.length() > 0)
                     dg.send(dpsJC);
-                if (bufJA.length > 0)
+                if (messageJA.length() > 0)
                     dg.send(dpsJA);
-                
-                // vidage des buffers
-                bufJC = new byte[1000];
-                bufJA = new byte[1000];
+
+                // vidage des messages
+                messageJC = "";
+                messageJA = "";
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -209,6 +260,30 @@ public class MorpionServeur {
 
         }
 
+        // a ameliorer en recommençant a attendre de nouveaux joueurs
+        System.out.println("Extinction du serveur...");
+        System.exit(0);
+
+    }
+
+    /**
+     * Vérifie le format des coordonnées recues.
+     * 
+     * @param coord Les coordonnees recues
+     * @return vrai si les coordonnees sont de la former 'i j', i et j des chiffres
+     *         entre 1 et 3, faux sinon
+     */
+    private boolean verifFormatCoordonnees(String[] coord) {
+        if (coord.length == 2 && coord[0].length() == 1 && coord[1].length() == 1) {
+            if (Character.isDigit(coord[0].charAt(0)) && Character.isDigit(coord[1].charAt(0))) {
+                int numLigne = Integer.parseInt(coord[0]);
+                int numColonne = Integer.parseInt(coord[1]);
+                if (numColonne >= 1 && numColonne <= 3 && numLigne >= 1 && numLigne <= 3) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public static void main(String args[]) {
