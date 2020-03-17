@@ -32,16 +32,21 @@ public class Morpion {
             return j1;
         }
     }
-    
+
     public String getEtat() {
         return etat;
     }
 
-    private boolean mouvementAutorise(int numLigne, int numCol) throws Exception {
+    public int getNbTours() {
+        return nbTours;
+    }
+
+    public boolean mouvementAutorise(int numLigne, int numCol) {
         if (grille[numLigne][numCol] == ' ') {
             return true;
+        } else {
+            return false;
         }
-        throw new Exception("Mouvement non autorisé !");
     }
 
     private void verifFinJeu() {
@@ -83,7 +88,7 @@ public class Morpion {
                 retour += grille[i][j] + "|";
             }
             retour += "\n";
-            
+
         }
         return retour;
     }
@@ -101,12 +106,13 @@ public class Morpion {
             return symbole;
         }
 
-        public void jouer(int numLigne, int numCol) throws Exception {
+        public void jouer(int numLigne, int numCol) {
             if (mouvementAutorise(numLigne, numCol)) {
                 grille[numLigne][numCol] = symbole;
+                verifFinJeu();
+                nbTours++;
             }
-            verifFinJeu();
-            nbTours++;
+            
         }
 
         public void gagne() {
@@ -114,7 +120,7 @@ public class Morpion {
             System.out.println(nom + " a gagné !");
         }
     }
-    
+
     public static void main(String[] args) {
         Morpion m = new Morpion();
         try {
@@ -126,7 +132,7 @@ public class Morpion {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        
+
         System.out.println(m);
     }
 }
